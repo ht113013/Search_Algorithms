@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜尋演算法大探險</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f0fdf4; }
+        .animate-pulse-slow { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+        /* Card Flip Animation */
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ICONS ---
+        const BookIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        );
+        const SearchIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        );
+        const BrainIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path></svg>
+        );
+        const CheckCircleIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        );
+        const EyeIcon = ({ className }) => (
+             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        );
+        const RaceIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+        );
+        const TreasureIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+        );
+
+
+        // --- COMPONENTS ---
+
+        // ==========================================
+        // 1. BINARY SEARCH LEARN (Original)
+        // ==========================================
+        const BinaryLearnSection = () => {
+            const [step, setStep] = useState(0);
+            const books = [3, 6, 7, 10, 11, 13, 16, 18, 26];
+            const target = 18;
+            
+            const steps = [
+                { text: "這是按照座號排序的 9 本美術作品。我們的目標是找到座號「18」的書。", highlight: [], mid: null, range: [0, 8], action: "初始化" },
+                { text: "二分搜尋法第一步：找中間位置 (M)。\n9 除以 2 等於 4.5，無條件進位取索引 4 (第5本)。", highlight: [], mid: 4, range: [0, 8], action: "計算中間值" },
+                { text: "第一回合比對：中間是「11」。\n目標「18」比「11」大，所以目標一定在後半段！", highlight: [4], mid: 4, range: [0, 8], action: "比對" },
+                { text: "縮小範圍！只看後半段的 4 本書 (13, 16, 18, 26)。\n新範圍：第 6 到第 9 本。", highlight: [], mid: null, range: [5, 8], action: "縮小範圍" },
+                { text: "第二回合：計算新範圍中間位置。\n4 除以 2 等於 2，取新範圍第 2 本 (總索引 6)，即「16」。", highlight: [], mid: 6, range: [5, 8], action: "計算中間值" },
+                { text: "第二回合比對：中間是「16」。\n目標「18」比「16」大，目標在後半段！", highlight: [6], mid: 6, range: [5, 8], action: "比對" },
+                { text: "縮小範圍！只剩下最後 2 本書 (18, 26)。", highlight: [], mid: null, range: [7, 8], action: "縮小範圍" },
+                { text: "第三回合：計算中間位置 (總索引 7)，即「18」。", highlight: [], mid: 7, range: [7, 8], action: "計算中間值" },
+                { text: "第三回合比對：中間是「18」。\n太棒了！找到了！", highlight: [7], mid: 7, range: [7, 8], action: "找到目標" }
+            ];
+
+            const currentStep = steps[step];
+
+            return (
+                <div className="max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow-xl">
+                    <h2 className="text-2xl font-bold text-green-700 mb-4 flex items-center">
+                        <BookIcon className="mr-2" /> 二分搜尋：圖解教學
+                    </h2>
+                    
+                    <div className="mb-8 h-64 flex items-end justify-center space-x-2 sm:space-x-4 bg-green-50 p-4 rounded-xl border border-green-100 overflow-x-auto">
+                        {books.map((bookVal, index) => {
+                            const isDim = index < currentStep.range[0] || index > currentStep.range[1];
+                            const isMid = index === currentStep.mid;
+                            const isFound = currentStep.action === "找到目標" && isMid;
+
+                            return (
+                                <div key={index} className={`relative flex flex-col items-center transition-all duration-500 ${isDim ? 'opacity-20 blur-[1px]' : 'opacity-100'}`}>
+                                    {isMid && (
+                                        <div className="absolute -top-10 animate-bounce text-red-500 font-bold text-lg">
+                                            M
+                                            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-red-500 mx-auto mt-1"></div>
+                                        </div>
+                                    )}
+                                    <div className={`w-8 sm:w-12 h-32 sm:h-40 rounded-sm border-l-4 border-b-4 flex items-center justify-center shadow-md transition-colors duration-300 ${isFound ? 'bg-yellow-300 border-yellow-500 scale-110' : isMid ? 'bg-red-100 border-red-400' : 'bg-orange-400 border-orange-600'}`}>
+                                        <span className="text-white font-bold text-lg sm:text-xl transform rotate-90 drop-shadow-md">{bookVal}</span>
+                                    </div>
+                                    <span className="mt-2 text-gray-500 text-sm font-mono">{index+1}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="bg-gray-800 text-white p-6 rounded-xl mb-6 min-h-[100px] flex items-center"><p className="text-lg leading-relaxed whitespace-pre-line">{currentStep.text}</p></div>
+                    <div className="flex justify-between items-center">
+                        <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className={`px-6 py-2 rounded-full font-bold transition ${step === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>上一步</button>
+                        <div className="text-gray-500 font-medium">步驟 {step + 1} / {steps.length}</div>
+                        <button onClick={() => setStep(Math.min(steps.length - 1, step + 1))} disabled={step === steps.length - 1} className={`px-6 py-2 rounded-full font-bold shadow-lg transition transform hover:scale-105 ${step === steps.length - 1 ? 'bg-green-200 text-green-700' : 'bg-green-600 text-white hover:bg-green-500'}`}>{step === steps.length - 1 ? '完成' : '下一步'}</button>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 2. SEQUENTIAL SEARCH LEARN (New)
+        // ==========================================
+        const SequentialLearnSection = () => {
+            const [step, setStep] = useState(0);
+            // Data from Sequential Search PPT (Unsorted)
+            const books = [3, 8, 9, 7, 2, 5, 1, 4, 6]; 
+            const target = 7;
+
+            const steps = [
+                { text: "這是書櫃上「亂序」排列的 9 本小說。我們要找第「7」集。\n因為沒有排序，二分搜尋法派不上用場，只能用循序搜尋。", currentIdx: null, found: false },
+                { text: "第一回合：檢查第 1 本書 (索引1)。\n書號是「3」，不是 7。繼續找...", currentIdx: 0, found: false },
+                { text: "第二回合：檢查第 2 本書 (索引2)。\n書號是「8」，不是 7。繼續找...", currentIdx: 1, found: false },
+                { text: "第三回合：檢查第 3 本書 (索引3)。\n書號是「9」，不是 7。繼續找...", currentIdx: 2, found: false },
+                { text: "第四回合：檢查第 4 本書 (索引4)。\n書號是「7」！找到目標了！", currentIdx: 3, found: true },
+                { text: "搜尋結束。\n在這個例子中，我們比較了 4 次才找到。", currentIdx: 3, found: true }
+            ];
+
+            const currentStep = steps[step];
+
+            return (
+                <div className="max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow-xl">
+                    <h2 className="text-2xl font-bold text-blue-700 mb-4 flex items-center">
+                        <EyeIcon className="mr-2" /> 循序搜尋：圖解教學
+                    </h2>
+                    
+                    <div className="mb-8 h-64 flex items-end justify-center space-x-2 sm:space-x-4 bg-blue-50 p-4 rounded-xl border border-blue-100 overflow-x-auto">
+                        {books.map((bookVal, index) => {
+                            const isCurrent = index === currentStep.currentIdx;
+                            const isChecked = currentStep.currentIdx !== null && index < currentStep.currentIdx;
+                            const isFound = currentStep.found && isCurrent;
+
+                            return (
+                                <div key={index} className={`relative flex flex-col items-center transition-all duration-300 ${isChecked ? 'opacity-50 grayscale' : 'opacity-100'}`}>
+                                    {isCurrent && (
+                                        <div className="absolute -top-10 animate-bounce text-blue-500 font-bold text-lg">
+                                            ↓
+                                        </div>
+                                    )}
+                                    <div className={`w-8 sm:w-12 h-32 sm:h-40 rounded-sm border-l-4 border-b-4 flex items-center justify-center shadow-md transition-colors duration-300 ${isFound ? 'bg-yellow-300 border-yellow-500 scale-110' : isCurrent ? 'bg-blue-200 border-blue-400' : 'bg-indigo-400 border-indigo-600'}`}>
+                                        <span className="text-white font-bold text-lg sm:text-xl transform rotate-90 drop-shadow-md">{bookVal}</span>
+                                    </div>
+                                    <span className="mt-2 text-gray-500 text-sm font-mono">{index+1}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="bg-gray-800 text-white p-6 rounded-xl mb-6 min-h-[100px] flex items-center"><p className="text-lg leading-relaxed whitespace-pre-line">{currentStep.text}</p></div>
+                    <div className="flex justify-between items-center">
+                        <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className={`px-6 py-2 rounded-full font-bold transition ${step === 0 ? 'bg-gray-200 text-gray-400' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>上一步</button>
+                        <div className="text-gray-500 font-medium">步驟 {step + 1} / {steps.length}</div>
+                        <button onClick={() => setStep(Math.min(steps.length - 1, step + 1))} disabled={step === steps.length - 1} className={`px-6 py-2 rounded-full font-bold shadow-lg transition transform hover:scale-105 ${step === steps.length - 1 ? 'bg-blue-200 text-blue-700' : 'bg-blue-600 text-white hover:bg-blue-500'}`}>{step === steps.length - 1 ? '完成' : '下一步'}</button>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 3. BINARY GAME (Original - AI Mind Reader)
+        // ==========================================
+        const BinaryGameSection = () => {
+             const [gameState, setGameState] = useState('intro'); 
+             const [min, setMin] = useState(1);
+             const [max, setMax] = useState(100);
+             const [guess, setGuess] = useState(50);
+             const [history, setHistory] = useState([]);
+ 
+             const startGame = () => {
+                 setGameState('playing');
+                 setMin(1);
+                 setMax(100);
+                 setGuess(50);
+                 setHistory([]);
+             };
+ 
+             const handleResponse = (response) => {
+                 const currentGuess = guess;
+                 const newHistory = [...history, { min, max, guess: currentGuess, response }];
+                 setHistory(newHistory);
+ 
+                 if (response === 'correct') {
+                     setGameState('won');
+                 } else if (response === 'too_low') {
+                     const newMin = currentGuess + 1;
+                     setMin(newMin);
+                     setGuess(Math.floor((newMin + max) / 2));
+                 } else if (response === 'too_high') {
+                     const newMax = currentGuess - 1;
+                     setMax(newMax);
+                     setGuess(Math.floor((min + newMax) / 2));
+                 }
+             };
+
+             // ... (Grid rendering logic reused inside the return)
+             const renderGrid = () => {
+                const grid = [];
+                for (let i = 1; i <= 100; i++) {
+                    let status = 'default';
+                    if (i < min || i > max) status = 'eliminated';
+                    else if (i === guess && gameState === 'playing') status = 'guess';
+                    else status = 'candidate';
+                    if (gameState === 'won' && i === guess) status = 'winner';
+                    
+                    let bgClass = status === 'eliminated' ? 'bg-gray-200 text-gray-300 scale-90 opacity-50' : 
+                                  status === 'candidate' ? 'bg-white text-green-600 border border-green-200' : 
+                                  status === 'guess' ? 'bg-blue-600 text-white font-bold scale-110 shadow-lg animate-pulse-slow' : 
+                                  status === 'winner' ? 'bg-yellow-400 text-white font-bold scale-125 shadow-xl z-10' : '';
+                    grid.push(<div key={i} className={`w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center text-xs sm:text-sm rounded transition-all duration-300 ${bgClass}`}>{i}</div>);
+                }
+                return grid;
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xl">
+                    <h2 className="text-2xl font-bold text-green-700 mb-4 flex items-center"><BrainIcon className="mr-2" /> 二分搜尋體驗：AI 讀心術</h2>
+                    {gameState === 'intro' ? (
+                        <div className="text-center py-10">
+                            <p className="text-xl text-gray-700 mb-6">請在心中想一個 1-100 的數字。AI 會用二分搜尋法猜中它！</p>
+                            <button onClick={startGame} className="bg-green-600 text-white px-8 py-4 rounded-full text-xl font-bold hover:bg-green-700 shadow-lg">開始體驗</button>
+                        </div>
+                    ) : gameState === 'won' ? (
+                        <div className="text-center py-8 animate-fade-in">
+                            <h3 className="text-3xl font-bold text-gray-800 mb-2">挑戰成功！</h3>
+                            <p className="text-xl text-gray-600 mb-6">AI 只猜了 <span className="font-bold text-green-600 text-3xl">{history.length}</span> 次就找到了 {guess}！</p>
+                            
+                            {/* NEW: History Display */}
+                            <div className="max-w-xl mx-auto bg-gray-50 p-6 rounded-xl text-left border border-gray-200 mb-8">
+                                <h4 className="font-bold text-gray-700 mb-4 text-lg border-b pb-2 flex items-center"><SearchIcon className="w-5 h-5 mr-2" /> AI 的思考歷程：</h4>
+                                <div className="space-y-3">
+                                    {history.map((step, index) => (
+                                        <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between text-sm sm:text-base bg-white p-3 rounded-lg shadow-sm">
+                                            <div className="flex items-center gap-3 mb-2 sm:mb-0">
+                                                <span className="bg-green-100 text-green-700 font-bold px-2 py-1 rounded-md text-xs">Step {index + 1}</span>
+                                                <span className="text-gray-600">範圍: <span className="font-mono font-bold text-gray-800">{step.min} ~ {step.max}</span></span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-bold text-gray-800">猜: {step.guess}</span>
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                    step.response === 'correct' ? 'bg-green-500 text-white' :
+                                                    step.response === 'too_low' ? 'bg-red-100 text-red-600' :
+                                                    'bg-blue-100 text-blue-600'
+                                                }`}>
+                                                    {step.response === 'correct' ? '答對' :
+                                                     step.response === 'too_low' ? '太小(往上找)' : '太大(往下找)'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button onClick={startGame} className="bg-gray-800 text-white px-6 py-3 rounded-full font-bold hover:bg-gray-700 transition">再玩一次</button>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col md:flex-row gap-8">
+                            <div className="flex-1">
+                                <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6"><p className="text-lg text-green-900 font-medium">AI 猜是： <span className="text-4xl font-bold block mt-2 text-center text-green-600">{guess}</span></p></div>
+                                <div className="space-y-3">
+                                    <button onClick={() => handleResponse('too_low')} className="w-full bg-red-100 text-red-700 py-3 rounded-xl font-bold hover:bg-red-200">太小了 (我的數字更大) ▲</button>
+                                    <button onClick={() => handleResponse('correct')} className="w-full bg-green-500 text-white py-4 rounded-xl font-bold hover:bg-green-600 shadow-md">答對了！ ★</button>
+                                    <button onClick={() => handleResponse('too_high')} className="w-full bg-blue-100 text-blue-700 py-3 rounded-xl font-bold hover:bg-blue-200">太大了 (我的數字更小) ▼</button>
+                                </div>
+                            </div>
+                            <div className="flex-1 bg-gray-50 p-4 rounded-xl border border-gray-200"><div className="grid grid-cols-10 gap-1">{renderGrid()}</div></div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 4. SEQUENTIAL GAME (New - Treasure Hunt)
+        // ==========================================
+        const SequentialGameSection = () => {
+            const [gameState, setGameState] = useState('intro'); // intro, hiding, searching, found
+            const [treasureIndex, setTreasureIndex] = useState(null);
+            const [searchIndex, setSearchIndex] = useState(0);
+            const [boxes, setBoxes] = useState(Array(20).fill(null)); // 20 boxes
+
+            useEffect(() => {
+                let interval;
+                if (gameState === 'searching') {
+                    interval = setInterval(() => {
+                        setSearchIndex(prev => {
+                            if (prev === treasureIndex) {
+                                setGameState('found');
+                                clearInterval(interval);
+                                return prev;
+                            }
+                            return prev + 1;
+                        });
+                    }, 500); // 0.5s per box search speed
+                }
+                return () => clearInterval(interval);
+            }, [gameState, treasureIndex]);
+
+            const startHide = () => {
+                setGameState('hiding');
+                setSearchIndex(0);
+                setTreasureIndex(null);
+            };
+
+            const hideTreasure = (idx) => {
+                setTreasureIndex(idx);
+                setGameState('searching');
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xl">
+                    <h2 className="text-2xl font-bold text-blue-700 mb-4 flex items-center"><BrainIcon className="mr-2" /> 循序搜尋體驗：藏寶箱遊戲</h2>
+                    
+                    {gameState === 'intro' && (
+                        <div className="text-center py-10">
+                            <p className="text-xl text-gray-700 mb-6">這裡有 20 個箱子。請你把寶藏藏在其中一個箱子裡，<br/>看看「循序搜尋機器人」是如何笨笨地一個一個找！</p>
+                            <button onClick={startHide} className="bg-blue-600 text-white px-8 py-4 rounded-full text-xl font-bold hover:bg-blue-700 shadow-lg">開始藏寶</button>
+                        </div>
+                    )}
+
+                    {gameState === 'hiding' && (
+                        <div className="text-center mb-6">
+                            <p className="text-lg text-blue-800 font-bold animate-pulse">請點擊一個箱子來藏寶藏！</p>
+                        </div>
+                    )}
+
+                    {(gameState === 'hiding' || gameState === 'searching' || gameState === 'found') && (
+                        <div className="grid grid-cols-5 gap-4 max-w-2xl mx-auto">
+                            {boxes.map((_, idx) => {
+                                let status = 'closed';
+                                if (gameState === 'searching' && idx < searchIndex) status = 'checked'; // Already checked
+                                if (gameState === 'searching' && idx === searchIndex) status = 'checking'; // Currently checking
+                                if (gameState === 'found' && idx === treasureIndex) status = 'found';
+                                if (gameState === 'found' && idx < treasureIndex) status = 'checked';
+
+                                return (
+                                    <button 
+                                        key={idx}
+                                        onClick={() => gameState === 'hiding' && hideTreasure(idx)}
+                                        disabled={gameState !== 'hiding'}
+                                        className={`
+                                            h-16 rounded-xl flex items-center justify-center text-2xl shadow-md transition-all duration-300 relative
+                                            ${status === 'closed' ? 'bg-blue-200 hover:bg-blue-300 border-b-4 border-blue-400' : ''}
+                                            ${status === 'checked' ? 'bg-gray-100 text-gray-400 border-2 border-dashed border-gray-300' : ''}
+                                            ${status === 'checking' ? 'bg-yellow-100 border-4 border-yellow-400 scale-105 z-10' : ''}
+                                            ${status === 'found' ? 'bg-yellow-300 border-4 border-yellow-500 scale-110 z-10' : ''}
+                                        `}
+                                    >
+                                        {status === 'closed' && gameState === 'hiding' && <span className="text-blue-500 opacity-50 text-sm">{idx+1}</span>}
+                                        {status === 'closed' && gameState !== 'hiding' && <span>📦</span>}
+                                        {status === 'checked' && <span>💨</span>}
+                                        {status === 'checking' && <span>👀</span>}
+                                        {status === 'found' && <span className="animate-bounce">💎</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {gameState === 'searching' && (
+                        <div className="mt-8 text-center text-gray-600">
+                            正在檢查第 <span className="font-bold text-blue-600 text-xl">{searchIndex + 1}</span> 個箱子...
+                        </div>
+                    )}
+
+                    {gameState === 'found' && (
+                        <div className="mt-8 text-center animate-fade-in">
+                            <p className="text-xl font-bold text-gray-800 mb-4">找到了！寶藏在第 {treasureIndex + 1} 個箱子。</p>
+                            <p className="text-gray-600 mb-6">機器人總共打開了 <span className="text-red-600 font-bold">{treasureIndex + 1}</span> 個箱子才找到。</p>
+                            <button onClick={startHide} className="bg-gray-800 text-white px-6 py-3 rounded-full font-bold hover:bg-gray-700">再玩一次</button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 5. COMPARISON ANIMATION (New - Race)
+        // ==========================================
+        const ComparisonSection = () => {
+            const [racing, setRacing] = useState(false);
+            const [target, setTarget] = useState(88);
+            
+            const [currentStep, setCurrentStep] = useState(0);
+            
+            // Pre-calculated paths
+            const [seqPath, setSeqPath] = useState([]);
+            const [binPath, setBinPath] = useState([]);
+
+            // Generate paths and start race
+            const startRace = () => {
+                const newTarget = Math.floor(Math.random() * 99) + 1; // 1-100
+                setTarget(newTarget);
+                
+                // 1. Calculate Sequential Path (1, 2, ... target)
+                const sPath = [];
+                for (let i = 1; i <= newTarget; i++) {
+                    sPath.push(i);
+                }
+                setSeqPath(sPath);
+
+                // 2. Calculate Binary Path
+                const bPath = [];
+                let low = 1, high = 100;
+                while (low <= high) {
+                    const mid = Math.floor((low + high) / 2);
+                    bPath.push(mid);
+                    if (mid === newTarget) break;
+                    if (mid < newTarget) low = mid + 1;
+                    else high = mid - 1;
+                }
+                setBinPath(bPath);
+
+                setCurrentStep(0);
+                setRacing(true);
+            };
+
+            // Unified Timer
+            useEffect(() => {
+                if (!racing) return;
+
+                // Check completion
+                const seqDone = currentStep >= seqPath.length;
+                const binDone = currentStep >= binPath.length;
+
+                if (seqDone && binDone) {
+                    setRacing(false);
+                    return;
+                }
+
+                // If one is done, speed up!
+                const isOneDone = seqDone || binDone;
+                const delay = isOneDone ? 100 : 1000; // Slow (1s) vs Fast (0.1s)
+
+                const timer = setTimeout(() => {
+                    setCurrentStep(prev => prev + 1);
+                }, delay);
+
+                return () => clearTimeout(timer);
+            }, [racing, currentStep, seqPath, binPath]);
+
+            // Derived Display State
+            // If currentStep=0 -> show nothing or start. Step=1 -> show index 0.
+            const seqCurrentVal = currentStep > 0 ? seqPath[Math.min(currentStep - 1, seqPath.length - 1)] : 0;
+            const binCurrentSteps = binPath.slice(0, currentStep);
+            const binCurrentVal = binCurrentSteps.length > 0 ? binCurrentSteps[binCurrentSteps.length - 1] : 0;
+
+            const seqFinished = currentStep >= seqPath.length;
+            const binFinished = currentStep >= binPath.length;
+
+            return (
+                <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-xl">
+                    <h2 className="text-2xl font-bold text-purple-700 mb-6 flex items-center"><RaceIcon className="mr-2" /> 演算法大對決：速度之戰</h2>
+                    
+                    <div className="text-center mb-8">
+                        <p className="mb-4 text-gray-600">目標：在 1 到 100 的數字中找到 <span className="text-3xl font-bold text-purple-600 mx-2">{target}</span></p>
+                        <p className="text-sm text-gray-500 mb-6">規則：兩者同步出發。當其中一位找到目標後，另一位會加速跑完。</p>
+                        <button onClick={startRace} disabled={racing} className={`px-8 py-3 rounded-full font-bold text-lg shadow-lg transition ${racing ? 'bg-gray-300 text-gray-500' : 'bg-purple-600 text-white hover:bg-purple-500'}`}>
+                            {racing ? '比賽進行中...' : '開始比賽'}
+                        </button>
+                    </div>
+
+                    {/* Sequential Track */}
+                    <div className="mb-8 relative">
+                        <div className="flex justify-between text-sm text-gray-500 mb-1">
+                            <span className="font-bold text-blue-600">循序搜尋法 (老實龜)</span>
+                            <span>回合數: {seqFinished ? seqPath.length : currentStep}</span>
+                        </div>
+                        <div className="h-14 bg-gray-100 rounded-full overflow-hidden relative border border-gray-200">
+                            {/* Progress Bar */}
+                            <div className="h-full bg-blue-200 transition-all duration-300 ease-linear" style={{ width: `${seqCurrentVal}%` }}></div>
+                            {/* Runner Icon */}
+                            <div className="absolute top-1/2 transform -translate-y-1/2 transition-all duration-300 ease-linear" style={{ left: `calc(${seqCurrentVal}% - 15px)` }}>
+                                <span className="text-2xl">🐢</span>
+                            </div>
+                            {/* Target Marker */}
+                            <div className="absolute top-0 h-full border-l-2 border-red-400 border-dashed" style={{ left: `${target}%` }}>
+                                <span className="text-xs text-red-500 ml-1">終點</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Binary Track */}
+                    <div className="mb-8 relative">
+                        <div className="flex justify-between text-sm text-gray-500 mb-1">
+                            <span className="font-bold text-green-600">二分搜尋法 (噴射兔)</span>
+                            <span>回合數: {binFinished ? binPath.length : currentStep}</span>
+                        </div>
+                        <div className="h-14 bg-gray-100 rounded-full overflow-hidden relative border border-gray-200 flex items-center px-2">
+                             {/* Visualizing Binary Jumps */}
+                             <div className="absolute w-full h-1 bg-gray-300 top-1/2 left-0 z-0"></div>
+                             {binCurrentSteps.map((val, idx) => (
+                                 <div key={idx} className="absolute top-1/2 transform -translate-y-1/2 w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow z-10" style={{ left: `calc(${val}% - 8px)` }}></div>
+                             ))}
+                             {/* Rabbit Icon at current mid */}
+                             <div className="absolute top-1/2 transform -translate-y-1/2 transition-all duration-300 z-20" style={{ left: `calc(${binCurrentVal}% - 15px)`, opacity: currentStep > 0 ? 1 : 0 }}>
+                                <span className="text-2xl">🐇</span>
+                            </div>
+                             {/* Target Marker */}
+                            <div className="absolute top-0 h-full border-l-2 border-red-400 border-dashed z-0" style={{ left: `${target}%` }}></div>
+                        </div>
+                    </div>
+
+                    {!racing && seqPath.length > 0 && (
+                         <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 text-center animate-fade-in">
+                            <h4 className="font-bold text-purple-800 text-lg mb-2">比賽結果</h4>
+                            <p className="text-gray-700">
+                                循序搜尋找了 <b className="text-blue-600">{seqPath.length}</b> 回合 <br/>
+                                二分搜尋只找了 <b className="text-green-600">{binPath.length}</b> 回合
+                            </p>
+                            <p className="text-sm text-gray-500 mt-2">
+                                {seqPath.length === binPath.length ? "哇！這次運氣好，平手！" : "二分搜尋法大幅節省了搜尋次數！"}
+                            </p>
+                         </div>
+                    )}
+                </div>
+            );
+        };
+
+        // ==========================================
+        // 6. QUIZ SECTION (Updated with Sequential)
+        // ==========================================
+        const QuizSection = () => {
+            const questions = [
+                {
+                    q: "二分搜尋法最基本的使用前提是什麼？",
+                    options: ["資料量必須很少", "資料必須已經排序 (Sorted)", "資料必須全是數字", "運氣要很好"],
+                    ans: 1,
+                    explanation: "二分搜尋法依賴資料的大小順序來決定搜尋方向，所以資料必須先經過排序。"
+                },
+                {
+                    q: "「循序搜尋法」又被稱為什麼？",
+                    options: ["跳躍搜尋法", "線性搜尋法 (Linear Search)", "隨機搜尋法", "指數搜尋法"],
+                    ans: 1,
+                    explanation: "因為它是沿著資料線性的從頭檢查到尾，所以又稱為線性搜尋法。"
+                },
+                {
+                    q: "在 100 筆資料中，使用循序搜尋法，最差的情況需要比對幾次？",
+                    options: ["1 次", "50 次", "100 次", "10 次"],
+                    ans: 2,
+                    explanation: "循序搜尋最差的情況就是目標在最後一個，或是根本不在裡面，必須檢查所有 100 筆資料。"
+                },
+                {
+                    q: "哪一種搜尋方法可以運用在「沒有排序」的資料上？",
+                    options: ["二分搜尋法", "循序搜尋法", "兩者都可以", "兩者都不行"],
+                    ans: 1,
+                    explanation: "循序搜尋法是一個一個檢查，不需要資料有順序。二分搜尋法則一定要資料已排序。"
+                },
+                {
+                    q: "PPT 範例中，要找紅心 K。如果紅心 K 剛好在第 1 張，這是什麼情況？",
+                    options: ["最差情況", "平均情況", "最佳情況", "不可能發生"],
+                    ans: 2,
+                    explanation: "第一次就找到目標，是演算法運氣最好的「最佳情況」。"
+                }
+            ];
+
+            const [currentQ, setCurrentQ] = useState(0);
+            const [score, setScore] = useState(0);
+            const [showResult, setShowResult] = useState(false);
+            const [selectedOption, setSelectedOption] = useState(null);
+            const [isAnswered, setIsAnswered] = useState(false);
+
+            const handleAnswer = (optionIndex) => {
+                if (isAnswered) return;
+                setSelectedOption(optionIndex);
+                setIsAnswered(true);
+                if (optionIndex === questions[currentQ].ans) setScore(score + 1);
+            };
+
+            const nextQuestion = () => {
+                if (currentQ < questions.length - 1) {
+                    setCurrentQ(currentQ + 1); setSelectedOption(null); setIsAnswered(false);
+                } else {
+                    setShowResult(true);
+                }
+            };
+            
+            const restartQuiz = () => {
+                setCurrentQ(0); setScore(0); setShowResult(false); setSelectedOption(null); setIsAnswered(false);
+            };
+
+            if (showResult) return (
+                <div className="max-w-2xl mx-auto bg-white p-8 rounded-2xl shadow-xl text-center">
+                    <h2 className="text-3xl font-bold text-gray-800 mb-6">測驗結果</h2>
+                    <div className="text-6xl mb-6">{score === questions.length ? '🏆' : score >= 3 ? '🎉' : '💪'}</div>
+                    <p className="text-2xl mb-4">得分： <span className="text-blue-600 font-bold">{score}</span> / {questions.length}</p>
+                    <button onClick={restartQuiz} className="bg-blue-600 text-white px-8 py-3 rounded-full font-bold hover:bg-blue-700">重新測驗</button>
+                </div>
+            );
+
+            const q = questions[currentQ];
+            return (
+                <div className="max-w-2xl mx-auto bg-white p-6 sm:p-8 rounded-2xl shadow-xl">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-bold text-purple-700 flex items-center"><CheckCircleIcon className="mr-2" /> 隨堂小測驗</h2>
+                        <span className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-bold">第 {currentQ + 1} / {questions.length} 題</span>
+                    </div>
+                    <div className="mb-8">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-6 leading-relaxed">{q.q}</h3>
+                        <div className="space-y-3">
+                            {q.options.map((opt, idx) => {
+                                let btnClass = "w-full text-left p-4 rounded-xl border-2 transition relative ";
+                                if (!isAnswered) btnClass += "border-gray-200 hover:border-purple-300 hover:bg-purple-50 cursor-pointer";
+                                else if (idx === q.ans) btnClass += "border-green-500 bg-green-50 text-green-800";
+                                else if (idx === selectedOption) btnClass += "border-red-400 bg-red-50 text-red-800";
+                                else btnClass += "border-gray-100 text-gray-400 opacity-60";
+                                return (
+                                    <button key={idx} onClick={() => handleAnswer(idx)} className={btnClass} disabled={isAnswered}>
+                                        <span className="font-bold mr-3">{String.fromCharCode(65 + idx)}.</span>{opt}
+                                        {isAnswered && idx === q.ans && <span className="absolute right-4 text-green-600">✓</span>}
+                                        {isAnswered && idx === selectedOption && idx !== q.ans && <span className="absolute right-4 text-red-500">✕</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    {isAnswered && <div className="animate-fade-in bg-blue-50 border border-blue-100 p-4 rounded-xl mb-6"><p className="font-bold text-blue-800 mb-1">解析：</p><p className="text-blue-700 text-sm">{q.explanation}</p></div>}
+                    <div className="flex justify-end"><button onClick={nextQuestion} disabled={!isAnswered} className={`px-8 py-3 rounded-full font-bold transition ${!isAnswered ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-purple-600 text-white hover:bg-purple-500 shadow-lg'}`}>{currentQ === questions.length - 1 ? '看結果' : '下一題'}</button></div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [tab, setTab] = useState('welcome'); // welcome, bin-learn, seq-learn, bin-game, seq-game, compare, quiz
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 text-gray-800 pb-12">
+                    {/* Header */}
+                    <header className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between overflow-x-auto">
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-800 flex items-center gap-2 flex-shrink-0 mr-4 cursor-pointer" onClick={() => setTab('welcome')}>
+                                <SearchIcon className="text-blue-600" />
+                                <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-green-600 hidden sm:inline">搜尋演算法探險</span>
+                            </h1>
+                            <nav className="flex space-x-1 sm:space-x-2 flex-shrink-0">
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button onClick={() => setTab('seq-learn')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === 'seq-learn' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>循序教學</button>
+                                    <button onClick={() => setTab('bin-learn')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === 'bin-learn' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>二分教學</button>
+                                </div>
+                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                    <button onClick={() => setTab('seq-game')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === 'seq-game' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>循序體驗</button>
+                                    <button onClick={() => setTab('bin-game')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${tab === 'bin-game' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>二分體驗</button>
+                                </div>
+                                <button onClick={() => setTab('compare')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition border ${tab === 'compare' ? 'bg-purple-100 text-purple-700 border-purple-200' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>比較動畫</button>
+                                <button onClick={() => setTab('quiz')} className={`px-3 py-1.5 rounded-lg text-sm font-medium transition border ${tab === 'quiz' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}>測驗</button>
+                            </nav>
+                        </div>
+                    </header>
+
+                    {/* Content Area */}
+                    <main className="max-w-5xl mx-auto px-4 py-8">
+                        {tab === 'welcome' && (
+                             <div className="text-center py-20 animate-fade-in">
+                                <h2 className="text-4xl font-bold text-gray-800 mb-6">歡迎來到搜尋演算法探險！</h2>
+                                <p className="text-xl text-gray-600 mb-8">選擇上方選單，開始探索「循序搜尋」與「二分搜尋」的奧秘。</p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                                    <div onClick={() => setTab('seq-learn')} className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer border-t-4 border-blue-500">
+                                        <h3 className="text-xl font-bold text-blue-700 mb-2">循序搜尋法</h3>
+                                        <p className="text-gray-500">像地毯式搜索，一個一個找，雖然慢但不需要排序。</p>
+                                    </div>
+                                    <div onClick={() => setTab('bin-learn')} className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition cursor-pointer border-t-4 border-green-500">
+                                        <h3 className="text-xl font-bold text-green-700 mb-2">二分搜尋法</h3>
+                                        <p className="text-gray-500">像查字典一樣，每次砍一半，速度超快！但資料必須先排序。</p>
+                                    </div>
+                                </div>
+                             </div>
+                        )}
+                        {tab === 'seq-learn' && <div className="animate-fade-in"><SequentialLearnSection /></div>}
+                        {tab === 'bin-learn' && <div className="animate-fade-in"><BinaryLearnSection /></div>}
+                        {tab === 'seq-game' && <div className="animate-fade-in"><SequentialGameSection /></div>}
+                        {tab === 'bin-game' && <div className="animate-fade-in"><BinaryGameSection /></div>}
+                        {tab === 'compare' && <div className="animate-fade-in"><ComparisonSection /></div>}
+                        {tab === 'quiz' && <div className="animate-fade-in"><QuizSection /></div>}
+                    </main>
+
+                    <footer className="text-center text-gray-400 text-sm mt-12">
+                        <p>Designed for Learning Search Algorithms</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+    <style>
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</body>
+</html>
